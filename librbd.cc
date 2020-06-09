@@ -4126,21 +4126,30 @@ int decrypt(const unsigned char *ciphertext, int ciphertext_len,
 
 int aes_init(unsigned char *key_data, int key_data_len, EVP_CIPHER_CTX *e, uint64_t this_sector) {
 
-  // test vyroby IV 16B z 4B
+  // test vyroby IV 16B z 4B 
   unsigned char iv[16];
 
-  unsigned long *j;
-  j = (unsigned long *)iv;
-  j[0] = 0;
-  j[1] = this_sector;
+	  unsigned long *j;
+	  j = (unsigned long *)iv;
+	  j[0] = this_sector;
+	  j[1] = 0;
 
-  int f;
-  for(f = 0; f < 16; f++)
-    printf("%02x", iv[f]);
-  printf("\n");
+	  //j[0] = 0;
+	  //j[1] = 0;
 
   EVP_CIPHER_CTX_init(e);
-  EVP_EncryptInit_ex(e, EVP_aes_256_ctr(), NULL, key_data, (unsigned char *)iv);
+  EVP_EncryptInit_ex(e, EVP_aes_256_ctr(), NULL, key_data, (unsigned char *)j);
+
+  printf("----WELCOME TO TGT DEBUG----\n");
+  printf("SECTOR: %lu\n", this_sector);
+
+  //int f;
+  //for(f = 0; f < 16; f++)
+  //  printf("%02x", iv[f]);
+  //printf("\n");
+
+  printf("----TGT DEBUG END----\n");
+
 
   return 0;
 }
@@ -4148,11 +4157,12 @@ int aes_init(unsigned char *key_data, int key_data_len, EVP_CIPHER_CTX *e, uint6
 unsigned char *aes_encrypt(unsigned char *plaintext, int *len, EVP_CIPHER_CTX *e) {
 
   /* max ciphertext len for a n bytes of plaintext is n + AES_BLOCK_SIZE -1 bytes */
-  int c_len = *len + AES_BLOCK_SIZE, f_len = 0;
+  int c_len = *len; // + AES_BLOCK_SIZE, 
+  int f_len = 0;
   unsigned char *ciphertext = (unsigned char *)malloc(c_len);
 
   /* allows reusing of 'e' for multiple encryption cycles */
-  EVP_EncryptInit_ex(e, NULL, NULL, NULL, NULL);
+  //EVP_EncryptInit_ex(e, NULL, NULL, NULL, NULL);
 
   /* update ciphertext, c_len is filled with the length of ciphertext generated,
     *len is the size of plaintext in bytes */
@@ -4168,10 +4178,11 @@ unsigned char *aes_encrypt(unsigned char *plaintext, int *len, EVP_CIPHER_CTX *e
 
 unsigned char *aes_decrypt(unsigned char *ciphertext, int *len, EVP_CIPHER_CTX *e) {
 
-  int p_len = *len, f_len = 0;
+  int p_len = *len;
+  int f_len = 0;
   unsigned char *plaintext =(unsigned char *)malloc(p_len);
   
-  EVP_DecryptInit_ex(e, NULL, NULL, NULL, NULL);
+  //EVP_DecryptInit_ex(e, NULL, NULL, NULL, NULL);
   EVP_DecryptUpdate(e, plaintext, &p_len, ciphertext, *len);
   EVP_DecryptFinal_ex(e, plaintext+p_len, &f_len);
 
@@ -4219,11 +4230,11 @@ extern "C" int rbd_open(rados_ioctx_t p, const char *name, rbd_image_t *image,
 	strcat(file_key_name, ictx->id.c_str()); // id disku
 
 	// DEBUG PRINT
-	printf("DEBUG PRINT:\n");
-	printf("pool id: %s\n", pool_id);
-	printf("disk id: %s\n", ictx->id.c_str());
-	printf("file key name: %s\n", file_key_name);
-	printf("DEBUG PRINT END\n");
+	//printf("DEBUG PRINT:\n");
+	//printf("pool id: %s\n", pool_id);
+	//printf("disk id: %s\n", ictx->id.c_str());
+	//printf("file key name: %s\n", file_key_name);
+	//printf("DEBUG PRINT END\n");
 
 	// zjisti jestli existuje soubor s nazvem klice
 	struct stat file;
@@ -5473,17 +5484,16 @@ extern "C" ssize_t rbd_read(rbd_image_t image, uint64_t ofs, size_t len, char *b
 			unsigned char *decrypted = (unsigned char *)malloc(len * sizeof(char));
 
 			// delka jednoho bufferu: 512 B nebo mene
-			uint64_t lang;
+			int lang;
 			// tohle pocita kolikaty blok je to od zacatku tohoto bufferu, a k sektoru s epricita nasledne +1
 			uint64_t sector_ctr = 0;
-
-			int indian_len;
 
 			// koduj po blocich 512 B
 			for(uint64_t i = 0; i < len; i += 512) {
 
 				// aktivni sektor, ze ktereho budes pocitat IV pro decrypt tohoto konkretniho 512 B bufferu
-				uint64_t this_sector = (ofs / 512) + 1 + sector_ctr;
+				//uint64_t this_sector = (ofs / 512) + 1 + sector_ctr;
+				uint64_t this_sector = (ofs / 512) + sector_ctr; // WTF
 
 			    if (aes_init((unsigned char *)ictx->evp_key, 32, &de, this_sector)) {
 			      printf("Couldn't initialize AES cipher\n");
@@ -5516,20 +5526,40 @@ extern "C" ssize_t rbd_read(rbd_image_t image, uint64_t ofs, size_t len, char *b
 				// delka momentalniho bloku, 512B nebo mene, ale doufejme ze fakt teda ne
 				lang = (len - i > 512) ? (512) : (len - i);
 
-				indian_len = lang + 1;
-
 				memcpy(crypted_buffer, buf + i, lang);
+
+			    if(this_sector == 100) {
+
+			    	printf("\nRBD READ START\n");
+
+			    	printf("sektor 100: zakodovane bajty: \n");
+			    	int q;
+			    	for(q = 0; q < 512; q++)
+			    		printf("%02x", crypted_buffer[q]);
+			    	printf("\n");
+			    }
 
 				// udelej nad tema datama crypt
 				////int l = decrypt(crypted_buffer, lang, (const unsigned char *)ictx->evp_key, (const unsigned char *)&this_sector, decrypted_buffer, NULL);
 
 				////printf("precteno sifrou: %i\n", l);
 
-				decrypted_buffer = (unsigned char *)aes_decrypt(crypted_buffer, &indian_len, &de);
+				decrypted_buffer = (unsigned char *)aes_decrypt(crypted_buffer, &lang, &de);
 
 				// nakopiruj data do rozkodovaneho bufferu
 				memcpy(decrypted + i, decrypted_buffer, lang);
 			
+			    if(this_sector == 100) {
+			    	printf("sektor 100: rozkodovane bajty: \n");
+			    	int q;
+			    	for(q = 0; q < 512; q++)
+			    		printf("%02x", decrypted_buffer[q]);
+			    	printf("\n");
+			    
+			    	printf("RBD READ END\n");
+
+			    }
+
 				// pridej dalsi sektor
 				sector_ctr++;
 
@@ -5660,18 +5690,17 @@ extern "C" ssize_t rbd_write(rbd_image_t image, uint64_t ofs, size_t len, const 
 			unsigned char *encrypted = (unsigned char *)malloc(len * sizeof(char));
 
 			// delka jednoho bufferu: 512 B nebo mene
-			uint64_t lang = 0;
+			int lang = 0;
 
 			// tohle pocita kolikaty blok je to od zacatku tohoto bufferu, a k sektoru s epricita nasledne +1
 			uint64_t sector_ctr = 0;
-
-			int indian_len;
 
 			// koduj po blocich 512 B
 			for(uint64_t i = 0; i < len; i += 512) {
 
 				// aktivni sektor, ze ktereho budes pocitat IV pro decrypt tohoto konkretniho 512 B bufferu
-				uint64_t this_sector = (ofs / 512) + 1 + sector_ctr;
+				//uint64_t this_sector = (ofs / 512) + 1 + sector_ctr;
+				uint64_t this_sector = (ofs / 512) + sector_ctr; // WTF
 
 				if (aes_init((unsigned char *)ictx->evp_key, 32, &en, this_sector)) {
 		    		printf("Couldn't initialize AES cipher\n");
@@ -5706,18 +5735,37 @@ extern "C" ssize_t rbd_write(rbd_image_t image, uint64_t ofs, size_t len, const 
 				// delka momentalniho bloku, 512B nebo mene, ale doufejme ze fakt teda ne
 				lang = (len - i > 512) ? (512) : (len - i);
 
-				indian_len = lang + 1;
+				memcpy(decrypted_buffer, buf + i, lang);
 
 				//printf("lang: %lu\n", lang);
 
-				memcpy(decrypted_buffer, buf + i, lang);
+			    if(this_sector == 100) {
+
+			    	printf("\nRBD WRITE START\n");
+
+			    	printf("sektor 1 : zakodovane bajty: \n");
+			    	int q;
+			    	for(q = 0; q < 512; q++)
+			    		printf("%02x", decrypted_buffer[q]);
+			    	printf("\n");
+			    }
 
 				// udelej nad tema datama crypt
 				////int l = encrypt(decrypted_buffer, lang, (const unsigned char *)ictx->evp_key, (const unsigned char *)&this_sector, crypted_buffer, NULL);
 
 				////printf("zapsano sifrou: %i\n", l);
 
-				crypted_buffer = aes_encrypt((unsigned char *)decrypted_buffer, &indian_len, &en);
+				crypted_buffer = aes_encrypt((unsigned char *)decrypted_buffer, &lang, &en);
+
+			    if(this_sector == 100) {
+			    	printf("sektor 1 : rozkodovane bajty: \n");
+			    	int q;
+			    	for(q = 0; q < 512; q++)
+			    		printf("%02x", crypted_buffer[q]);
+			    	printf("\n");
+			  
+			  		printf("RBD WRITE END\n");
+			    }
 
 				// nakopiruj data do rozkodovaneho bufferu
 				memcpy((encrypted + i), crypted_buffer, lang);
