@@ -46,6 +46,7 @@
 
 // MTEST
 //#include <openssl/conf.h>
+#include <openssl/sha.h>
 #include <openssl/evp.h>
 //#include <openssl/rand.h>
 //#include <openssl/err.h>
@@ -3969,18 +3970,13 @@ extern "C" void rbd_config_pool_list_cleanup(rbd_config_option_t *options,
 }
 
 // funkce na vypocet SHA 256 hash: key je to co bude shashovat, hashed je vysledna hash
-//void hmac(const unsigned char *key, unsigned char *hashed) {
+void hmac(const unsigned char *key, unsigned char *hashed) {
+    SHA256_CTX sha256;
+    SHA256_Init(&sha256);
+    SHA256_Update(&sha256, key, 32);
+    SHA256_Final(hashed, &sha256);
+}
 
-	//printf("HMAC 1\n");
-    //SHA256_CTX sha256;
-    //printf("HMAC 2\n");
-    //SHA256_Init(&sha256);
-    //printf("HMAC 3\n");
-    //SHA256_Update(&sha256, key, 32);
-    //printf("HMAC 4\n");
-    //SHA256_Final(hashed, &sha256);
-
-//}
 /*
 void digest_message(const unsigned char *message, size_t message_len, unsigned char *digest, unsigned int digest_len) {
 	
@@ -4124,32 +4120,78 @@ int decrypt(const unsigned char *ciphertext, int ciphertext_len,
 }
 */
 
+unsigned char *aes_encrypt(unsigned char *plaintext, int *len, EVP_CIPHER_CTX *e);
+
 int aes_init(unsigned char *key_data, int key_data_len, EVP_CIPHER_CTX *e, uint64_t this_sector) {
 
-  // test vyroby IV 16B z 4B 
-  unsigned char iv[16];
+	EVP_CIPHER_CTX f;
+	EVP_CIPHER_CTX_init(&f);
 
-	  unsigned long *j;
-	  j = (unsigned long *)iv;
-	  j[0] = this_sector;
-	  j[1] = 0;
+	// inicializacni iv
+	unsigned char *iv1 = (unsigned char *)malloc(sizeof(char) * 16);
 
-	  //j[0] = 0;
-	  //j[1] = 0;
+	int len = 16;
+
+	unsigned char *salt = (unsigned char *)malloc(sizeof(char) * 32);
+
+	hmac(key_data, salt);
+
+  // ostre koncove iv 
+  unsigned char *iv = (unsigned char *)malloc(sizeof(char) * 16);
+
+	unsigned long *j;
+	j = (unsigned long *)iv1;
+	j[0] = this_sector;
+	j[1] = 0;
+
+	// null comma neun
+	//j[0] = 0;
+	//j[1] = 0;
 
   EVP_CIPHER_CTX_init(e);
-  EVP_EncryptInit_ex(e, EVP_aes_256_ctr(), NULL, key_data, (unsigned char *)j);
 
-  printf("----WELCOME TO TGT DEBUG----\n");
-  printf("SECTOR: %lu\n", this_sector);
+  EVP_EncryptInit_ex(&f, EVP_aes_256_ecb(), NULL, salt, iv1);
 
-  //int f;
-  //for(f = 0; f < 16; f++)
-  //  printf("%02x", iv[f]);
-  //printf("\n");
+//  iv = aes_encrypt((unsigned char *)(&this_sector), &len, &f);
+  iv = aes_encrypt(iv1, &len, &f);
 
-  printf("----TGT DEBUG END----\n");
+  EVP_EncryptInit_ex(e, EVP_aes_256_ctr(), NULL, key_data, iv);
 
+  if(this_sector == 1) {
+
+  	printf("----WELCOME TO TGT DEBUG----\n");
+  	printf("SECTOR: %lu\n", this_sector);
+
+  	printf("IV: \n");
+  	int q;
+  	for(q = 0; q < 16; q++)
+  		printf("%02x", iv[q]);
+  	printf("\n");
+
+  	printf("KEY HASH = SALT: \n");
+  	for(q = 0; q < 32; q++)
+  		printf("%02x", salt[q]);
+  	printf("\n");
+
+  	printf("KEY: \n");
+  	for(q = 0; q < 32; q++)
+  		printf("%02x", key_data[q]);
+  	printf("\n");
+
+  	printf("IV FOR FIRST RUN: \n");
+  	for(q = 0; q < 16; q++)
+  		printf("%02x", iv1[q]);
+  	printf("\n");  	
+
+  	printf("----TGT DEBUG END----\n");
+
+  }
+
+  EVP_CIPHER_CTX_cleanup(&f);
+
+  free(salt);
+  free(iv);
+  free(iv1);
 
   return 0;
 }
@@ -5528,7 +5570,7 @@ extern "C" ssize_t rbd_read(rbd_image_t image, uint64_t ofs, size_t len, char *b
 
 				memcpy(crypted_buffer, buf + i, lang);
 
-			    if(this_sector == 100) {
+			    if(this_sector == 1) {
 
 			    	printf("\nRBD READ START\n");
 
@@ -5549,7 +5591,7 @@ extern "C" ssize_t rbd_read(rbd_image_t image, uint64_t ofs, size_t len, char *b
 				// nakopiruj data do rozkodovaneho bufferu
 				memcpy(decrypted + i, decrypted_buffer, lang);
 			
-			    if(this_sector == 100) {
+			    if(this_sector == 1) {
 			    	printf("sektor 100: rozkodovane bajty: \n");
 			    	int q;
 			    	for(q = 0; q < 512; q++)
@@ -5739,11 +5781,11 @@ extern "C" ssize_t rbd_write(rbd_image_t image, uint64_t ofs, size_t len, const 
 
 				//printf("lang: %lu\n", lang);
 
-			    if(this_sector == 100) {
+			    if(this_sector == 1) {
 
 			    	printf("\nRBD WRITE START\n");
 
-			    	printf("sektor 1 : zakodovane bajty: \n");
+			    	printf("sektor 1 : rozkodovane bajty: \n");
 			    	int q;
 			    	for(q = 0; q < 512; q++)
 			    		printf("%02x", decrypted_buffer[q]);
@@ -5757,8 +5799,8 @@ extern "C" ssize_t rbd_write(rbd_image_t image, uint64_t ofs, size_t len, const 
 
 				crypted_buffer = aes_encrypt((unsigned char *)decrypted_buffer, &lang, &en);
 
-			    if(this_sector == 100) {
-			    	printf("sektor 1 : rozkodovane bajty: \n");
+			    if(this_sector == 1) {
+			    	printf("sektor 1 : zakodovane bajty: \n");
 			    	int q;
 			    	for(q = 0; q < 512; q++)
 			    		printf("%02x", crypted_buffer[q]);
