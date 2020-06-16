@@ -3977,155 +3977,9 @@ void hmac(const unsigned char *key, unsigned char *hashed) {
     SHA256_Final(hashed, &sha256);
 }
 
-/*
-void digest_message(const unsigned char *message, size_t message_len, unsigned char *digest, unsigned int digest_len) {
-	
-	EVP_MD_CTX *mdctx;
-
-	if((mdctx = EVP_MD_CTX_create()) == NULL)
-		handleErrors();
-
-	if(1 != EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL))
-		handleErrors();
-
-	if(1 != EVP_DigestUpdate(mdctx, message, message_len))
-		handleErrors();
-
-	if((digest = (unsigned char *)OPENSSL_malloc(EVP_MD_size(EVP_sha256()))) == NULL)
-		handleErrors();
-
-	if(1 != EVP_DigestFinal_ex(mdctx, digest, &digest_len))
-		handleErrors();
-
-	EVP_MD_CTX_destroy(mdctx);
-
-    printf("YYY\n");
-
-	// TIMHLE SE DAJI VYTISKNOUT SYROVE BAJTY
-	//printf("SHA 256 content: \n");
-	//int i;
-	//for (i = 0; i < outlen; ++i)
-	//    printf("%02x", hashed[i]);
-	//printf("\n");
-
-//	EVP_MD_CTX hashctx;
-//	const EVP_MD *hashptr = EVP_get_digestbyname("SHA256");
-
-//	EVP_MD_CTX_init(&hashctx);
-//	EVP_DigestInit_ex(&hashctx, hashptr, NULL);
-
-	// nacpi retezec do sifry
-//  EVP_DigestUpdate(&hashctx, key, strlen(key));
-
-//	unsigned int outlen;
-//	EVP_DigestFinal_ex(&hashctx, hashed, &outlen);
-
-//	EVP_MD_CTX_cleanup(&hashctx);
-
-	// TIMHLE SE DAJI VYTISKNOUT SYROVE BAJTY
-	//printf("SHA 256 content: \n");
-	//int i;
-	//for (i = 0; i < outlen; ++i)
-	//    printf("%02x", hashed[i]);
-	//printf("\n");
-
-}
-*/
-
-/*
-int encrypt(const unsigned char *plaintext, int plaintext_len,
-		const unsigned char *key, const unsigned char *iv, unsigned char *ciphertext, unsigned char *tag)
-{
-	EVP_CIPHER_CTX *ctx;
-	int len;
-	int ciphertext_len;
-
-	if (!(ctx = EVP_CIPHER_CTX_new()))
-		handleErrors();
-
-	//if (EVP_EncryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, key, iv) != 1)
-	//	handleErrors();
-
-	// NEW
-	EVP_EncryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, NULL, NULL);
-	EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, 16, NULL);
-	EVP_EncryptInit_ex(ctx, NULL, NULL, key, iv);
-	// NEW END
-
-	if (EVP_CIPHER_CTX_set_padding(ctx, 0) != 1)
-		handleErrors();
-
-	if (EVP_EncryptUpdate(ctx, ciphertext, &len, plaintext, plaintext_len) != 1)
-		handleErrors();
-
-	ciphertext_len = len;
-
-	if (EVP_EncryptFinal_ex(ctx, ciphertext // + len , &len) != 1)
-		handleErrors();
-
-	ciphertext_len += len;
-
-	if (tag && EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, 16, tag) != 1)
-		handleErrors();
-
-	EVP_CIPHER_CTX_free(ctx);
-
-	return ciphertext_len;
-}
-*/
-
-/*
-int decrypt(const unsigned char *ciphertext, int ciphertext_len,
-		const unsigned char *key, const unsigned char *iv, unsigned char *plaintext, unsigned char *tag) {
-
-	// ciphertext: 512B nebo mene, zakodovanych 
-	// ciphertex_len: delka toho 512 bufferu
-	// ciphertext_position: na jakou pozici v plaintext to mas zkopirovat ty dekodovany data
-
-	EVP_CIPHER_CTX *ctx;
-	int len;
-	int plaintext_len;
-
-	if (!(ctx = EVP_CIPHER_CTX_new()))
-		handleErrors();
-
-	if (EVP_DecryptInit_ex(ctx, EVP_aes_256_ctr(), NULL, key, iv) != 1)
-		handleErrors();
-
-	if (EVP_CIPHER_CTX_set_padding(ctx, 0) != 1)
-		handleErrors();
-
-	// updatuj decryptor 
-	if (EVP_DecryptUpdate(ctx, plaintext, &len, ciphertext, ciphertext_len) != 1)
-		handleErrors();
-
-	plaintext_len = len;
-
-	//if (tag && !EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, 16, tag))
-	//	handleErrors();
-
-	if (EVP_DecryptFinal_ex(ctx, plaintext + len, &len) != 1) {
-		//if (tag) {
-		//	printf("Tag verify failed.\n");
-		//	return 0;
-		//}
-		handleErrors();
-	}
-
-	plaintext_len += len;
-
-	EVP_CIPHER_CTX_free(ctx);
-
-	return plaintext_len;
-}
-*/
-
 unsigned char *aes_encrypt(unsigned char *plaintext, int *len, EVP_CIPHER_CTX *e);
 
-int aes_init(unsigned char *key_data, int key_data_len, EVP_CIPHER_CTX *e, uint64_t this_sector) {
-
-	EVP_CIPHER_CTX f;
-	EVP_CIPHER_CTX_init(&f);
+int aes_init(unsigned char **iv, unsigned char *key_data, int key_data_len, uint64_t this_sector, EVP_CIPHER_CTX *f) {
 
 	// inicializacni iv
 	unsigned char *iv1 = (unsigned char *)malloc(sizeof(char) * 16);
@@ -4136,61 +3990,16 @@ int aes_init(unsigned char *key_data, int key_data_len, EVP_CIPHER_CTX *e, uint6
 
 	hmac(key_data, salt);
 
-  // ostre koncove iv 
-  unsigned char *iv = (unsigned char *)malloc(sizeof(char) * 16);
-
 	unsigned long *j;
 	j = (unsigned long *)iv1;
 	j[0] = this_sector;
 	j[1] = 0;
 
-	// null comma neun
-	//j[0] = 0;
-	//j[1] = 0;
+  	EVP_EncryptInit_ex(f, EVP_aes_256_ecb(), NULL, salt, iv1);
 
-  EVP_CIPHER_CTX_init(e);
-
-  EVP_EncryptInit_ex(&f, EVP_aes_256_ecb(), NULL, salt, iv1);
-
-//  iv = aes_encrypt((unsigned char *)(&this_sector), &len, &f);
-  iv = aes_encrypt(iv1, &len, &f);
-
-  EVP_EncryptInit_ex(e, EVP_aes_256_ctr(), NULL, key_data, iv);
-
-  if(this_sector == 1) {
-
-  	printf("----WELCOME TO TGT DEBUG----\n");
-  	printf("SECTOR: %lu\n", this_sector);
-
-  	printf("IV: \n");
-  	int q;
-  	for(q = 0; q < 16; q++)
-  		printf("%02x", iv[q]);
-  	printf("\n");
-
-  	printf("KEY HASH = SALT: \n");
-  	for(q = 0; q < 32; q++)
-  		printf("%02x", salt[q]);
-  	printf("\n");
-
-  	printf("KEY: \n");
-  	for(q = 0; q < 32; q++)
-  		printf("%02x", key_data[q]);
-  	printf("\n");
-
-  	printf("IV FOR FIRST RUN: \n");
-  	for(q = 0; q < 16; q++)
-  		printf("%02x", iv1[q]);
-  	printf("\n");  	
-
-  	printf("----TGT DEBUG END----\n");
-
-  }
-
-  EVP_CIPHER_CTX_cleanup(&f);
+    *iv = aes_encrypt(iv1, &len, f);
 
   free(salt);
-  free(iv);
   free(iv1);
 
   return 0;
@@ -4199,20 +4008,13 @@ int aes_init(unsigned char *key_data, int key_data_len, EVP_CIPHER_CTX *e, uint6
 unsigned char *aes_encrypt(unsigned char *plaintext, int *len, EVP_CIPHER_CTX *e) {
 
   /* max ciphertext len for a n bytes of plaintext is n + AES_BLOCK_SIZE -1 bytes */
-  int c_len = *len; // + AES_BLOCK_SIZE, 
+  int c_len = *len + AES_BLOCK_SIZE; 
   int f_len = 0;
-  unsigned char *ciphertext = (unsigned char *)malloc(c_len);
+  unsigned char *ciphertext = (unsigned char *)malloc(c_len * sizeof(char));
 
-  /* allows reusing of 'e' for multiple encryption cycles */
-  //EVP_EncryptInit_ex(e, NULL, NULL, NULL, NULL);
-
-  /* update ciphertext, c_len is filled with the length of ciphertext generated,
-    *len is the size of plaintext in bytes */
   EVP_EncryptUpdate(e, ciphertext, &c_len, plaintext, *len);
-
-  /* update ciphertext with the final remaining bytes */
   EVP_EncryptFinal_ex(e, ciphertext+c_len, &f_len);
-
+  
   *len = c_len + f_len;
 
   return ciphertext;
@@ -4222,9 +4024,8 @@ unsigned char *aes_decrypt(unsigned char *ciphertext, int *len, EVP_CIPHER_CTX *
 
   int p_len = *len;
   int f_len = 0;
-  unsigned char *plaintext =(unsigned char *)malloc(p_len);
+  unsigned char *plaintext = (unsigned char *)malloc(p_len * sizeof(char));
   
-  //EVP_DecryptInit_ex(e, NULL, NULL, NULL, NULL);
   EVP_DecryptUpdate(e, plaintext, &p_len, ciphertext, *len);
   EVP_DecryptFinal_ex(e, plaintext+p_len, &f_len);
 
@@ -4271,76 +4072,21 @@ extern "C" int rbd_open(rados_ioctx_t p, const char *name, rbd_image_t *image,
 	strcat(file_key_name, "_");
 	strcat(file_key_name, ictx->id.c_str()); // id disku
 
-	// DEBUG PRINT
-	//printf("DEBUG PRINT:\n");
-	//printf("pool id: %s\n", pool_id);
-	//printf("disk id: %s\n", ictx->id.c_str());
-	//printf("file key name: %s\n", file_key_name);
-	//printf("DEBUG PRINT END\n");
-
 	// zjisti jestli existuje soubor s nazvem klice
 	struct stat file;
 
 	if(stat(file_key_name, &file) == 0) {
-	    
-		printf("- soubor existuje\n");
 
 		// soubor s klicem existuje
 		FILE *fp;
 		fp = fopen(file_key_name, "r");
 
 		if(fp != NULL) {
-
-			printf("- soubor jde otevrit\n");
 			
 			// klic v souboru je OK, jde nacist 32B + 1 ukoncovaci
 			if(fgets(ictx->evp_key, 33, fp) == NULL) {
 				r = -2;
-				printf("- klic v souboru nema spravnou delku\n");
-			}
-			else {
-
-				printf("- klic v souboru ma spravnou delku\n");
-
-				////ERR_load_crypto_strings();
-				////OpenSSL_add_all_algorithms();
-				//evp_cipher_ecb = EVP_aes_256_ecb();
-				//evp_cipher = EVP_aes_256_ctr();
-
-				// DEBUG
-				printf("klic v image je ted vlozen: %s\n", ictx->evp_key);
-
-				// DEBUG SHA256 + dalsi picoviny
-		
-				//unsigned char *salt = (unsigned char *)malloc(sizeof(char) * 32);
-
-				//memset(salt, 'A', 32);
-
-				// do key_hash uloz SHA256 hash
-				//digest_message((const unsigned char *)ictx->evp_key, 32, salt, 32);
-
-				// TIMHLE SE DAJI VYTISKNOUT SYROVE BAJTY
-				//printf("SHA 256 content: \n");
-				//int i;
-				//for (i = 0; i < 32; ++i)
-				//    printf("%02x", salt[i]);
-				//printf("\n");
-
-				//const char *fake_iv = "1234567890abcdef";
-				//uint64_t ofs = 5;
-				//uint64_t this_sector = (ofs / 512) + 1;
-
-				// lokalni IV pro tento sektor
-				//const unsigned char *iv = (unsigned char *)malloc(sizeof(char) * 17);
-				//memset((void *)iv, '\0', 17);
-
-				//printf("DEBUG: salt: %s %i\n", salt, strlen((const char *)salt));
-
-				//encrypt(evp_cipher_ecb, (const unsigned char *)&this_sector, 16, (const unsigned char *)salt, (const unsigned char *)fake_iv, (unsigned char *)iv, NULL);
-
-				//free(salt);
-				//free((void *)iv);
-
+				fprintf(stderr, "Klic v souboru nema spravnou delku. Soubor: %s\n", file_key_name);
 			}
 
 			fclose(fp);
@@ -4348,13 +4094,13 @@ extern "C" int rbd_open(rados_ioctx_t p, const char *name, rbd_image_t *image,
 		}
 		else {
 			// propaguj chybu otevreni souboru
-			printf("- soubor nejde otevrit\n");
+			fprintf(stderr, "Soubor nejde otevrit. Soubor: %s\n", file_key_name);
 			r = -1;
 		}
 
 	}
 	else {
-		printf("- soubor s klicem nebyl nalezen pomoci access.\n");
+		fprintf(stderr, "Soubor s klicem nebyl nalezen pomoci access. Soubor: %s\n", file_key_name);
 	}
 
 	tracepoint(librbd, open_image_exit, r);
@@ -5501,26 +5247,15 @@ extern "C" ssize_t rbd_read(rbd_image_t image, uint64_t ofs, size_t len, char *b
 	// pokud neni disk prazdny a klic existuje v bloku
 	if (isCrypted && strlen(ictx->evp_key)) {
 
-		  EVP_CIPHER_CTX de;
+			EVP_CIPHER_CTX de;
+			EVP_CIPHER_CTX_init(&de);
 
-			// SHA256 start
-			//unsigned char *salt = (unsigned char *)malloc(sizeof(char) * 32);
-			//memset(salt, '\0', 32);
-
-			// do key_hash uloz SHA256 hash
-			//hmac((const unsigned char *)ictx->evp_key, salt);
-
-			// lokalni IV pro tento sektor
-			//const unsigned char *iv = (unsigned char *)malloc(sizeof(char) * 16);
-			//memset((void *)iv, '\0', 16);
-
-			//const char *fake_iv = "1234567890abcdef"; // falesne iv, kvuli aes 256 ecb co probiha pri tvorbe IV pro konkretni sektor
-
-			//printf("RBD READ DATA LEN: %lu\n", len);
+			EVP_CIPHER_CTX f;
+			EVP_CIPHER_CTX_init(&f);
 
 			// buffer ktery budes sifrovat
 			unsigned char *crypted_buffer = (unsigned char *)malloc(512 * sizeof(char));
-			unsigned char *decrypted_buffer = (unsigned char *)malloc(512 * sizeof(char));
+			unsigned char *decrypted_buffer;
 
 			// finalni retezec, kde budou dekodovana data
 			unsigned char *decrypted = (unsigned char *)malloc(len * sizeof(char));
@@ -5533,89 +5268,48 @@ extern "C" ssize_t rbd_read(rbd_image_t image, uint64_t ofs, size_t len, char *b
 			// koduj po blocich 512 B
 			for(uint64_t i = 0; i < len; i += 512) {
 
+				// ostre iv, pro koncove CTR, mmaloc je v aes_encrypt()
+				unsigned char *iv;
+
 				// aktivni sektor, ze ktereho budes pocitat IV pro decrypt tohoto konkretniho 512 B bufferu
-				//uint64_t this_sector = (ofs / 512) + 1 + sector_ctr;
-				uint64_t this_sector = (ofs / 512) + sector_ctr; // WTF
+				uint64_t this_sector = (ofs / 512) + sector_ctr;
 
-			    if (aes_init((unsigned char *)ictx->evp_key, 32, &de, this_sector)) {
-			      printf("Couldn't initialize AES cipher\n");
+			    if (aes_init(&iv, (unsigned char *)ictx->evp_key, 32, this_sector, &de)) {	
+			    	fprintf(stderr, "Couldn't initialize AES cipher. key: %s\n", ictx->evp_key);
 			    }
 
-				//printf("DEBUG READ: this sector: %lu\n", this_sector);
+			    else {
 
-				// vezmi ciselna data this_secotr z pameti a preved je na bajty
-				//unsigned char this_sector_str[sizeof(this_sector)];
-				//memcpy(this_sector_str, (unsigned char *)&this_sector, sizeof(this_sector));
-				//unsigned char this_sector_str[16];
-				//memset(this_sector_str, '0', 16);
-				//sprintf((char *)this_sector_str, "%016lu", this_sector);
-				//memcpy(this_sector_str, (unsigned char *)this_sector, sizeof(this_sector));
+	  				EVP_EncryptInit_ex(&de, EVP_aes_256_ctr(), NULL, (unsigned char *)ictx->evp_key, iv);
 
-				//printf("DEBUG READ: this sector in str:\n");
-				//for (i = 0; i < 16; ++i)
-				//	printf("%02x", this_sector_str[i]);		
-				//printf("\n");
+					// kdyby nahodou tam byly nejaky kusy co maji min nez 512, musis zjistit jak funguje padding u krbd modulu
+					memset(crypted_buffer, '\0', 512);
+					//memset(decrypted_buffer, '\0', 512);
 
-				// tady ocekava ze dostane odkaz na char co bude mit 16B cisel za sebou, pravdepodobne nuly a 
+					// delka momentalniho bloku, 512B nebo mene, ale doufejme ze fakt teda ne
+					lang = (len - i > 512) ? (512) : (len - i);
 
-				// zkaoduj pomoci AES 256 ECB salt a dostanes iv pro konkretni sektor
-				//encrypt(evp_cipher_ecb, (const unsigned char *)&this_sector, 16, (const unsigned char *)salt, (const unsigned char *)fake_iv, (unsigned char *)iv, NULL);
+					memcpy(crypted_buffer, buf + i, lang);
 
-				// kdyby nahodou tam byly nejaky kusy co maji min nez 512, musis zjistit jak funguje padding u krbd modulu
-				memset(crypted_buffer, '\0', 512);
-				memset(decrypted_buffer, '\0', 512);
+					decrypted_buffer = (unsigned char *)aes_decrypt(crypted_buffer, &lang, &de);
 
-				// delka momentalniho bloku, 512B nebo mene, ale doufejme ze fakt teda ne
-				lang = (len - i > 512) ? (512) : (len - i);
+					// nakopiruj data do rozkodovaneho bufferu
+					memcpy(decrypted + i, decrypted_buffer, 512);
 
-				memcpy(crypted_buffer, buf + i, lang);
-
-			    if(this_sector == 1) {
-
-			    	printf("\nRBD READ START\n");
-
-			    	printf("sektor 100: zakodovane bajty: \n");
-			    	int q;
-			    	for(q = 0; q < 512; q++)
-			    		printf("%02x", crypted_buffer[q]);
-			    	printf("\n");
+					// pridej dalsi sektor
+					sector_ctr++;
 			    }
 
-				// udelej nad tema datama crypt
-				////int l = decrypt(crypted_buffer, lang, (const unsigned char *)ictx->evp_key, (const unsigned char *)&this_sector, decrypted_buffer, NULL);
-
-				////printf("precteno sifrou: %i\n", l);
-
-				decrypted_buffer = (unsigned char *)aes_decrypt(crypted_buffer, &lang, &de);
-
-				// nakopiruj data do rozkodovaneho bufferu
-				memcpy(decrypted + i, decrypted_buffer, lang);
-			
-			    if(this_sector == 1) {
-			    	printf("sektor 100: rozkodovane bajty: \n");
-			    	int q;
-			    	for(q = 0; q < 512; q++)
-			    		printf("%02x", decrypted_buffer[q]);
-			    	printf("\n");
-			    
-			    	printf("RBD READ END\n");
-
-			    }
-
-				// pridej dalsi sektor
-				sector_ctr++;
-
+				free(iv);
 			}
 
 			memcpy((void *)buf, (const void *)decrypted, len);
 			free(decrypted);
 			free(crypted_buffer);
 			free(decrypted_buffer);
-			//free(salt);
-			//free((void *)iv);
 
-		  EVP_CIPHER_CTX_cleanup(&de);
-
+			EVP_CIPHER_CTX_cleanup(&f);
+			EVP_CIPHER_CTX_cleanup(&de);				
 	}
 
 	tracepoint(librbd, read_exit, r);
@@ -5705,27 +5399,14 @@ extern "C" ssize_t rbd_write(rbd_image_t image, uint64_t ofs, size_t len, const 
 	// pokud to naslo klic
 	if(strlen(ictx->evp_key)) {
 
-		EVP_CIPHER_CTX en;
+			EVP_CIPHER_CTX en;
+			EVP_CIPHER_CTX_init(&en);
 
-			// SHA256 start
-			//unsigned char *salt = (unsigned char *)malloc(sizeof(char) * 32);
-			//memset(salt, '\0', 32); // NEW
-
-			// do key_hash uloz SHA256 hash
-			//hmac((const unsigned char *)ictx->evp_key, salt);
-
-			// lokalni IV pro tento sektor
-			//const unsigned char *iv = (unsigned char *)malloc(sizeof(char) * 17);
-			//memset((void *)iv, '\0', 17); // NEW
-
-			//const char *fake_iv = "1234567890abcdef"; // falesne iv, kvuli aes 256 ecb co probiha pri tvorbe IV pro konkretni sektor
-
-			//printf("DOCHAZI K RBD WRITE ENCRYPTED, key: %s\n", ictx->evp_key);
-
-			//printf("RBD WRITE LEN: %lu OFFSET: %lu\n", len, ofs);
+			EVP_CIPHER_CTX f;
+			EVP_CIPHER_CTX_init(&f);
 
 			// buffer ktery budes sifrovat
-			unsigned char *crypted_buffer = (unsigned char *)malloc(512 * sizeof(char));
+			unsigned char *crypted_buffer;
 			unsigned char *decrypted_buffer = (unsigned char *)malloc(512 * sizeof(char));
 
 			// finalni retezec na zakodovana data
@@ -5740,80 +5421,39 @@ extern "C" ssize_t rbd_write(rbd_image_t image, uint64_t ofs, size_t len, const 
 			// koduj po blocich 512 B
 			for(uint64_t i = 0; i < len; i += 512) {
 
-				// aktivni sektor, ze ktereho budes pocitat IV pro decrypt tohoto konkretniho 512 B bufferu
-				//uint64_t this_sector = (ofs / 512) + 1 + sector_ctr;
-				uint64_t this_sector = (ofs / 512) + sector_ctr; // WTF
+				unsigned char *iv;
 
-				if (aes_init((unsigned char *)ictx->evp_key, 32, &en, this_sector)) {
-		    		printf("Couldn't initialize AES cipher\n");
+				// aktivni sektor, ze ktereho budes pocitat IV pro decrypt tohoto konkretniho 512 B bufferu
+				uint64_t this_sector = (ofs / 512) + sector_ctr;
+
+				if (aes_init(&iv, (unsigned char *)ictx->evp_key, 32, this_sector, &f)) {
+		    		fprintf(stderr, "Couldn't initialize AES cipher. Key: %s\n", ictx->evp_key);
 				}
 
-				//printf("sector ctr: %lu\n", sector_ctr);
+				else {
 
-				//printf("this sector: %lu\n", this_sector);
+					EVP_EncryptInit_ex(&en, EVP_aes_256_ctr(), NULL, (unsigned char *)ictx->evp_key, iv);
 
-				//printf("i: %lu\n", i);			
+					// kdyby nahodou tam byly nejaky kusy co maji min nez 512, musis zjistit jak funguje padding u krbd modulu
+					//memset(crypted_buffer, '\0', 512);
+					memset(decrypted_buffer, '\0', 512);
 
-				// vezmi ciselna data this_secotr z pameti a preved je na bajty
-				//unsigned char this_sector_str[16];
-				//memcpy(this_sector_str, (unsigned char *)&this_sector, sizeof(this_sector));
+					// delka momentalniho bloku, 512B nebo mene, ale doufejme ze fakt teda ne
+					lang = (len - i > 512) ? (512) : (len - i);
 
-				//unsigned char this_sector_str[16];
-				//memset(this_sector_str, '0', 16);
-				//sprintf((char *)this_sector_str, "%016lu", this_sector);
-				//memcpy(this_sector_str, (unsigned char *)this_sector, sizeof(this_sector));
+					memcpy(decrypted_buffer, buf + i, lang);
 
-				// zkaoduj pomoci AES 256 ECB salt a dostanes iv pro konkrenti sektor
+					crypted_buffer = aes_encrypt((unsigned char *)decrypted_buffer, &lang, &en);
 
-				//printf("DEBUG: salt: %s %i\n", salt, strlen((const char *)salt));
-				//printf("DEBUG: iv: %s %i\n", iv, strlen((const char *)iv));
+					// nakopiruj data do rozkodovaneho bufferu
+					memcpy((encrypted + i), crypted_buffer, 512);
 
-				//encrypt(evp_cipher_ecb, (const unsigned char *)&this_sector, 16, (const unsigned char *)salt, (const unsigned char *)fake_iv, (unsigned char *)iv, NULL);
+					// pridej dalsi sektor
+					sector_ctr++;
 
-				// kdyby nahodou tam byly nejaky kusy co maji min nez 512, musis zjistit jak funguje padding u krbd modulu
-				memset(crypted_buffer, '\0', 512);
-				memset(decrypted_buffer, '\0', 512);
+				}
 
-				// delka momentalniho bloku, 512B nebo mene, ale doufejme ze fakt teda ne
-				lang = (len - i > 512) ? (512) : (len - i);
-
-				memcpy(decrypted_buffer, buf + i, lang);
-
-				//printf("lang: %lu\n", lang);
-
-			    if(this_sector == 1) {
-
-			    	printf("\nRBD WRITE START\n");
-
-			    	printf("sektor 1 : rozkodovane bajty: \n");
-			    	int q;
-			    	for(q = 0; q < 512; q++)
-			    		printf("%02x", decrypted_buffer[q]);
-			    	printf("\n");
-			    }
-
-				// udelej nad tema datama crypt
-				////int l = encrypt(decrypted_buffer, lang, (const unsigned char *)ictx->evp_key, (const unsigned char *)&this_sector, crypted_buffer, NULL);
-
-				////printf("zapsano sifrou: %i\n", l);
-
-				crypted_buffer = aes_encrypt((unsigned char *)decrypted_buffer, &lang, &en);
-
-			    if(this_sector == 1) {
-			    	printf("sektor 1 : zakodovane bajty: \n");
-			    	int q;
-			    	for(q = 0; q < 512; q++)
-			    		printf("%02x", crypted_buffer[q]);
-			    	printf("\n");
-			  
-			  		printf("RBD WRITE END\n");
-			    }
-
-				// nakopiruj data do rozkodovaneho bufferu
-				memcpy((encrypted + i), crypted_buffer, lang);
-
-				// pridej dalsi sektor
-				sector_ctr++;
+				free(iv);
 
 			}
 			
@@ -5822,11 +5462,9 @@ extern "C" ssize_t rbd_write(rbd_image_t image, uint64_t ofs, size_t len, const 
 			free(encrypted);
 			free(crypted_buffer);
 			free(decrypted_buffer);
-			//free(salt);
-			//free((void *)iv); // NEW
 
-		// smazat kontexty
-		EVP_CIPHER_CTX_cleanup(&en);
+			EVP_CIPHER_CTX_cleanup(&en);
+			EVP_CIPHER_CTX_cleanup(&f);
 
 	}
 
