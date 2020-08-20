@@ -1,0 +1,1 @@
+cryptsetup --cipher=aes-ctr-essiv:sha256 --offset=0 --key-file /root/mikekey --key-size=256 open --type=plain /dev/rbd0 crypto
